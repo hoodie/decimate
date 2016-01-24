@@ -9,7 +9,7 @@
 //! *, /, in current implementation comparisons and equality checks may cause
 //! overflows too.
 //!
-//! Conversions to f32 and f64 are fast and dirty.
+//! Conversions to f32, f64 and ints are fast and dirty.
 #![feature(test)]
 extern crate core;
 extern crate num;
@@ -28,6 +28,10 @@ pub type Exp = i8;
 pub struct Decimal<T: Copy + Integer> {
     m: T,   // mantissa
     e: Exp, // exponent
+}
+
+fn abs<T: Integer>(x: T) -> T {
+    if x < T::zero() { T::zero() - x } else { x }
 }
 
 impl <T: Copy + Integer + FromPrimitive + ToPrimitive> Decimal<T> {
@@ -57,6 +61,27 @@ impl <T: Copy + Integer + FromPrimitive + ToPrimitive> Decimal<T> {
         }
     }
 
+    /// Rounds to nearest integer. Half-way cases are rounded away from zero.
+    /// Doesn't alter precision.
+    pub fn round(&self) -> Decimal<T> {
+        if self.e >= 0 {
+            self.clone()
+        } else {
+            let exp = pow(self.base(), (-self.e) as usize);
+            let (d, r) = self.m.div_rem(&exp);
+            let d_with_carry = if abs(r) >= exp / T::from_u8(2).unwrap() {
+                if self.m >= T::zero() {
+                    d + T::one()
+                } else {
+                    d - T::one()
+                }
+            } else {
+                d
+            };
+            Decimal::<T>::from_parts(d_with_carry * exp, self.e)
+        }
+    }
+
     /// Convert to f64, possibly with precision loss and overflows. Currently
     /// conversion isn't perfect, i. e. it may be inexact even when exact
     /// conversion is possible.
@@ -71,6 +96,17 @@ impl <T: Copy + Integer + FromPrimitive + ToPrimitive> Decimal<T> {
     pub fn to_f32(&self) -> f32 {
         self.m.to_f32().map(|x| x * 10f32.powi(self.e as i32))
             .unwrap_or(std::f32::NAN)
+    }
+
+    /// Convert to an integer, truncating fractional part. May overflow.
+    pub fn to_int<U: Clone + Integer + FromPrimitive + From<T>>(&self) -> U {
+        let exp = pow(U::from_u8(10).unwrap(), self.e.abs() as usize);
+        let m: U = self.m.into();
+        match self.e.cmp(&0) {
+            Ordering::Equal => m,
+            Ordering::Less => m / exp,
+            Ordering::Greater => m * exp,
+        }
     }
 }
 
@@ -183,6 +219,15 @@ impl <U, T> From<U> for Decimal<T>
     }
 }
 
+// Conflicting implementation, not sure if it's possible to work around it
+// impl <U, T> Into<U> for Decimal<T>
+//     where U: Integer,
+//           T: Copy + Integer + FromPrimitive + ToPrimitive {
+
+//     fn into(self) -> U {
+//         ...
+//     }
+// }
 
 impl <T> Add for Decimal<T>
     where T: Copy + Integer + FromPrimitive + ToPrimitive {
@@ -295,9 +340,27 @@ mod test {
     }
 
     #[test]
+    fn test_round() {
+        assert_eq!(format!("{}", d("11.35").round()), "11.00");
+        assert_eq!(format!("{}", d("11.50").round()), "12.00");
+        assert_eq!(format!("{}", d("11.75").round()), "12.00");
+        assert_eq!(format!("{}", d("-11.35").round()), "-11.00");
+        assert_eq!(format!("{}", d("-11.50").round()), "-12.00");
+        assert_eq!(format!("{}", d("-11.75").round()), "-12.00");
+    }
+
+    #[test]
     fn test_to_float() {
         assert!((d("0.125").to_f64() - 0.125f64).abs() < ::std::f64::EPSILON);
         assert!((d("10.25").to_f32() - 10.25f32).abs() < 20.0 * ::std::f32::EPSILON);
+    }
+
+    #[test]
+    fn test_to_int() {
+        assert_eq!(d("145").to_int::<i64>(), 145);
+        assert_eq!(d("145.112").to_int::<i64>(), 145);
+        assert_eq!(d("-145.112").to_int::<i64>(), -145);
+        assert_eq!(Decimal::<i64>::from_parts(234, 3).to_int::<i64>(), 234000);
     }
 
     #[test]
@@ -361,8 +424,8 @@ mod test {
     #[bench]
     fn bench_mul_1000_deci64(b: &mut Bencher) {
         let x = d("10.3");
-        let y = d("2");
-        // overflows
+        // overflows if multiplied by something other
+        let y = d("1");
         b.iter(|| (0..1000).fold(x, |s, _| s * y));
     }
 
