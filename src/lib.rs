@@ -15,7 +15,7 @@ extern crate num;
 extern crate rustc_serialize;
 
 use core::cmp::Ordering;
-use core::ops::Add;
+use core::ops::{Add, Sub, Mul, Div};
 use core::str::FromStr;
 use core::fmt;
 use num::{Integer, pow};
@@ -183,7 +183,7 @@ impl <U, T> From<U> for Decimal<T>
 }
 
 
-impl <T: Copy + Integer + FromPrimitive> Add for Decimal<T>
+impl <T> Add for Decimal<T>
     where T: Copy + Integer + FromPrimitive + ToPrimitive {
 
     type Output = Decimal<T>;
@@ -193,6 +193,33 @@ impl <T: Copy + Integer + FromPrimitive> Add for Decimal<T>
     }
 }
 
+impl <T> Sub for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive {
+
+    type Output = Decimal<T>;
+    fn sub(self, other: Self) -> Self {
+        let (m1, m2, e) = self.to_common_exponent(&other);
+        Self::from_parts(m1 - m2, e)
+    }
+}
+
+impl <T> Mul for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive {
+
+    type Output = Decimal<T>;
+    fn mul(self, other: Self) -> Self {
+        Self::from_parts(self.m * other.m, self.e + other.e)
+    }
+}
+
+impl <T> Div for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive {
+
+    type Output = Decimal<T>;
+    fn div(self, other: Self) -> Self {
+        Self::from_parts(self.m / other.m, self.e - other.e)
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -236,6 +263,27 @@ mod test {
     fn test_add() {
         assert_eq!(d("0.011") + d("11.32"), d("11.331"));
         assert_eq!(d("40") + d(".56"), d("40.56"));
+    }
+
+    #[test]
+    fn test_sub() {
+        assert_eq!(d("0.011") - d("11.32"), d("-11.309"));
+        assert_eq!(d("11") - d("10.1"), d("0.9"));
+    }
+
+    #[test]
+    fn test_mul() {
+        assert_eq!(d("0.10") * d("11.3"), d("1.130"));
+        assert_eq!(d("100") * d("11.3"), d("1130"));
+        assert_eq!(format!("{}", d("11.3") * d("0.100")), "1.1300");
+        assert_eq!(format!("{}", d("11.30") * d("0.1000")), "1.130000");
+    }
+
+    #[test]
+    fn test_div() {
+        assert_eq!(d("0.112") / d("0.001"), d("112"));
+        assert_eq!(format!("{}", d("11.35") / d("0.01")), "1135");
+        assert_eq!(format!("{}", d("11.36") / d("10")), "1.13");
     }
 
     #[test]
