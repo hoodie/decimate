@@ -10,6 +10,7 @@
 //! overflows too.
 //!
 //! Conversions to f32 and f64 are fast and dirty.
+#![feature(test)]
 extern crate core;
 extern crate num;
 extern crate rustc_serialize;
@@ -223,10 +224,17 @@ impl <T> Div for Decimal<T>
 
 #[cfg(test)]
 mod test {
+    extern crate test;
+    use self::test::Bencher;
+
     use std::str::FromStr;
     use super::Decimal;
 
     fn d(s: &str) -> Decimal<i64> {
+        Decimal::from_str(s).unwrap()
+    }
+
+    fn d32(s: &str) -> Decimal<i32> {
         Decimal::from_str(s).unwrap()
     }
 
@@ -306,5 +314,77 @@ mod test {
         assert_eq!(format!("{}", Decimal::<i32>::from_parts(123, 3)), "123000");
         // assert_eq!(format!("{}", d("0.125")), "0.125");
         assert_eq!(format!("{}", d("-1.88")), "-1.88");
+    }
+
+    #[bench]
+    fn bench_sum_1000_aligned_deci64(b: &mut Bencher) {
+        let x = d("0.112");
+        let y = d("34.349");
+        b.iter(|| (0..1000).fold(x, |s, _| s + y));
+    }
+
+    #[bench]
+    fn bench_sum_1000_aligned_deci32(b: &mut Bencher) {
+        let x = d32("0.112");
+        let y = d32("34.349");
+        b.iter(|| (0..1000).fold(x, |s, _| s + y));
+    }
+
+    #[bench]
+    fn bench_sum_1000_unaligned_deci64(b: &mut Bencher) {
+        let x = d("0.112");
+        let y = d("34.3");
+        b.iter(|| (0..1000).fold(x, |s, _| s + y));
+    }
+
+    #[bench]
+    fn bench_sum_1000_f32(b: &mut Bencher) {
+        let x: f32 = 0.112;
+        let y: f32 = 34.349;
+        b.iter(|| (0..1000).fold(x, |s, _| s + y));
+    }
+
+    #[bench]
+    fn bench_sum_1000_f64(b: &mut Bencher) {
+        let x: f64 = 0.112;
+        let y: f64 = 34.349;
+        b.iter(|| (0..1000).fold(x, |s, _| s + y));
+    }
+
+    #[bench]
+    fn bench_mul_1000_f64(b: &mut Bencher) {
+        let x: f64 = 10.112;
+        let y: f64 = 0.995;
+        b.iter(|| (0..1000).fold(x, |s, _| s * y));
+    }
+
+    #[bench]
+    fn bench_mul_1000_deci64(b: &mut Bencher) {
+        let x = d("10.3");
+        let y = d("2");
+        // overflows
+        b.iter(|| (0..1000).fold(x, |s, _| s * y));
+    }
+
+    #[bench]
+    fn bench_format_deci64(b: &mut Bencher) {
+        let x = d("-10.33");
+        b.iter(|| format!("{}", x));
+    }
+
+    #[bench]
+    fn bench_format_f64(b: &mut Bencher) {
+        let x: f64 = -10.33;
+        b.iter(|| format!("{}", x));
+    }
+
+    #[bench]
+    fn bench_parse_deci64(b: &mut Bencher) {
+        b.iter(|| Decimal::<i64>::from_str("-10.33").unwrap());
+    }
+
+    #[bench]
+    fn bench_parse_f64(b: &mut Bencher) {
+        b.iter(|| f64::from_str("-10.33").unwrap());
     }
 }
