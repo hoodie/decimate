@@ -10,21 +10,24 @@
 //! overflows too.
 //!
 //! Conversions to f32, f64 and ints are fast and dirty.
-#![feature(test)]
+#![feature(augmented_assignments, op_assign_traits, test)]
 extern crate core;
 extern crate num;
 extern crate rustc_serialize;
 
 use core::cmp::Ordering;
-use core::ops::{Add, Sub, Mul, Div};
+use core::ops::{Add, Sub, Mul, Div, AddAssign};
 use core::str::FromStr;
 use core::fmt;
+
 use num::{Integer, pow};
-use num::traits::{FromPrimitive, ToPrimitive, Signed};
+use num::traits::{FromPrimitive, ToPrimitive, Signed, Zero};
+use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
+
 
 pub type Exp = i8;
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub struct Decimal<T: Copy + Integer> {
     m: T,   // mantissa
     e: Exp, // exponent
@@ -108,7 +111,42 @@ impl <T: Copy + Integer + FromPrimitive + ToPrimitive> Decimal<T> {
             Ordering::Greater => m * exp,
         }
     }
+
+    /// Returns significand and exponent.
+    pub fn to_parts(&self) -> (T, Exp) {
+        (self.m, self.e)
+    }
+
+    pub fn canonical(&self) -> Decimal<T> {
+        if self.is_zero() {
+            return Decimal::<T>::zero();
+        }
+
+        let mut out = self.clone();
+        loop {
+            let (d, r) = out.m.div_rem(&self.base());
+            if r == T::zero() {
+                out.m = d;
+                out.e += 1;
+            } else {
+                break
+            }
+        }
+        out
+    }
 }
+
+impl <T> Zero for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive {
+    fn zero() -> Self {
+        Decimal::<T>::from_parts(T::zero(), 0)
+    }
+
+    fn is_zero(&self) -> bool {
+        self.m.is_zero()
+    }
+}
+
 
 impl <T> fmt::Display for Decimal<T>
     where T: Copy + Integer + FromPrimitive + ToPrimitive + fmt::Display {
@@ -239,6 +277,16 @@ impl <T> Add for Decimal<T>
     }
 }
 
+impl <T> AddAssign for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive {
+
+    fn add_assign(&mut self, other: Self) {
+        let (m1, m2, e) = self.to_common_exponent(&other);
+        self.m = m1 + m2;
+        self.e = e;
+    }
+}
+
 impl <T> Sub for Decimal<T>
     where T: Copy + Integer + FromPrimitive + ToPrimitive {
 
@@ -267,10 +315,28 @@ impl <T> Div for Decimal<T>
     }
 }
 
+#[cfg(feature = "rustc-serialize")]
+impl <T> Decodable for Decimal<T>
+    where T: Copy + Integer + Signed + FromPrimitive + ToPrimitive + FromStr {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        let s = try!(d.read_str());
+        Ok(Self::from_str(&s).expect("can't get string"))
+    }
+}
+
+#[cfg(feature = "rustc-serialize")]
+impl <T> Encodable for Decimal<T>
+    where T: Copy + Integer + FromPrimitive + ToPrimitive + fmt::Display {
+    fn encode<E: Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
+        e.emit_str(&format!("{}", self))
+    }
+}
+
 #[cfg(test)]
 mod test {
     extern crate test;
     use self::test::Bencher;
+    use rustc_serialize::json;
 
     use std::str::FromStr;
     use super::Decimal;
@@ -449,5 +515,19 @@ mod test {
     #[bench]
     fn bench_parse_f64(b: &mut Bencher) {
         b.iter(|| f64::from_str("-10.33").unwrap());
+    }
+
+    // code from Decimal::d128
+    #[cfg(feature = "rustc-serialize")]
+    #[test]
+    fn test_rustc_serialize() {
+        #[derive(RustcDecodable, RustcEncodable, PartialEq, Debug)]
+        struct Test {
+            price: Decimal<i64>,
+        };
+        let a = Test { price: d("12.3456") };
+        assert_eq!(json::encode(&a).unwrap(), "{\"price\":\"12.3456\"}");
+        let b = json::decode("{\"price\":\"12.3456\"}").unwrap();
+        assert_eq!(a, b);
     }
 }

@@ -5,4 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 num = "0.1"
-rustc-serialize = "0.3"
+rustc-serialize = { optional = true, version = "~0.3" }
+
+[features]
+default = ["rustc-serialize"]
