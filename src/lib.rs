@@ -1,19 +1,24 @@
 //! Simple implementation of decimal floating point numbers in pure rust.
 //!
-//! Numbers are represented as mantissa and exponent. Mantissa is stored in
-//! an integer that is specified as type parameter, so basic operations should
-//! be reasonably fast.
+//! Numbers are represented as significand and exponent. Significand is stored
+//! in an integer that is specified as type parameter, so basic operations
+//! should be reasonably fast.
 //!
-//! If a limited integer type is used for mantissa then mostly all operations
-//! may cause integer overflows. While it's what should be expected for +, -,
-//! *, /, in current implementation comparisons and equality checks may cause
-//! overflows too.
+//! If a limited integer type is used for significand then nearly all operations
+//! may cause integer overflows. Overflows are handled in the same way as
+//! with standard integer types: debug builds panic, release builds silently
+//! ignore them.
 //!
-//! Conversions to f32, f64 and ints are fast and dirty.
+//! The main use case for this library is fast, low-overhead operations with
+//! financial data when precision and magnitude of numbers are well known
+//! beforehand and there is need for inexact conversions into ints and
+//! standard floating types for faster number-crunching.
+
 #![feature(augmented_assignments, op_assign_traits, test)]
 extern crate core;
 extern crate num;
 extern crate rustc_serialize;
+extern crate test;
 
 use core::cmp::Ordering;
 use core::ops::{Add, Sub, Mul, Div, AddAssign};
@@ -333,7 +338,7 @@ impl <T> Encodable for Decimal<T>
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     extern crate test;
     use self::test::Bencher;
     use rustc_serialize::json;
