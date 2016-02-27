@@ -1,6 +1,12 @@
 [package]
-authors = ["Alexander Morozov <rust@meltdown.ru>"]
 name = "decimate"
+keywords = ["decimal"]
+description = "Simple decimal library in pure Rust"
+documentation = "https://crates.fyi/crates/decimate/0.1.0/"
+homepage = "https://gitlab.com/amorozov/decimate"
+repository = "https://gitlab.com/amorozov/decimate"
+license = "MIT"
+authors = ["Alexander Morozov <rust@meltdown.ru>"]
 version = "0.1.0"
 
 [dependencies]
