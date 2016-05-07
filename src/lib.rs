@@ -14,11 +14,9 @@
 //! beforehand and there is need for inexact conversions into ints and
 //! standard floating types for faster number-crunching.
 
-#![feature(augmented_assignments, op_assign_traits, test)]
 extern crate core;
 extern crate num;
 extern crate rustc_serialize;
-extern crate test;
 
 use core::cmp::Ordering;
 use core::ops::{Add, Sub, Mul, Div, AddAssign};
