@@ -30,7 +30,7 @@ use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 pub type Exp = i8;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash)]
 pub struct Decimal<T: Copy + Integer> {
     m: T,   // mantissa
     e: Exp, // exponent
